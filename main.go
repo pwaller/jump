@@ -3,9 +3,12 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"syscall"
+	"time"
 
 	"github.com/olekukonko/tablewriter"
 
@@ -44,7 +47,7 @@ func ShowInstances(instances []*Instance) {
 	table.Render()
 }
 
-func UserSelectInstance(max int) int {
+func GetInstanceFromUser(max int) int {
 	s := bufio.NewScanner(os.Stdin)
 	if !s.Scan() {
 		// User closed stdin before we read anything
@@ -65,7 +68,7 @@ func UserSelectInstance(max int) int {
 }
 
 func InvokeSSH(instance *Instance) {
-	log.Println("Sending you to:", instance)
+	fmt.Fprintln(os.Stderr, "Connecting to", instance.Name())
 
 	args := []string{"/usr/bin/ssh"}
 	// Enable the user to specify arguments to the left and right of the host.
@@ -80,25 +83,87 @@ func InvokeSSH(instance *Instance) {
 	}
 }
 
-func main() {
+func CursorUp(n int) {
+	fmt.Fprint(os.Stderr, "[", n, "F")
+}
+func ClearToEndOfScreen() {
+	fmt.Fprint(os.Stderr, "[", "J")
+}
 
-	if os.Getenv("SSH_AUTH_SOCK") == "" {
-		fmt.Fprintln(os.Stderr, "[41;1mWarning: agent forwarding not enabled[K[m")
-	}
+func JumpTo(client *ec2.EC2) {
 
-	creds := aws.IAMCreds()
-	c := ec2.New(creds, AWS_REGION, nil)
-	ec2Instances, err := c.DescribeInstances(&ec2.DescribeInstancesRequest{})
+	ec2Instances, err := client.DescribeInstances(&ec2.DescribeInstancesRequest{})
 	if err != nil {
 		log.Fatal("DescribeInstances error:", err)
 	}
 
 	// Do this after querying the AWS endpoint (otherwise vulnerable to MITM.)
-	ConfigureHTTP()
+	ConfigureHTTP(false)
 
 	instances := InstancesFromEC2Result(ec2Instances)
 	ShowInstances(instances)
 
-	n := UserSelectInstance(len(instances))
+	n := GetInstanceFromUser(len(instances))
+
+	// +1 to account for final newline.
+	CursorUp(len(instances) + N_TABLE_DECORATIONS + 1)
+	ClearToEndOfScreen()
+
 	InvokeSSH(instances[n])
+}
+
+func Watch(client *ec2.EC2) {
+	creds := aws.IAMCreds()
+	c := ec2.New(creds, AWS_REGION, nil)
+
+	finish := make(chan struct{})
+	go func() {
+		defer close(finish)
+		// Await stdin closure
+		io.Copy(ioutil.Discard, os.Stdin)
+	}()
+
+	for {
+		queryStart := time.Now()
+		ConfigureHTTP(true)
+
+		ec2Instances, err := c.DescribeInstances(&ec2.DescribeInstancesRequest{})
+		if err != nil {
+			log.Fatal("DescribeInstances error:", err)
+		}
+
+		ConfigureHTTP(false)
+
+		instances := InstancesFromEC2Result(ec2Instances)
+		ShowInstances(instances)
+
+		queryDuration := time.Since(queryStart)
+
+		select {
+		case <-time.After(1*time.Second - queryDuration):
+		case <-finish:
+			return
+		}
+		CursorUp(len(instances) + N_TABLE_DECORATIONS)
+	}
+
+}
+
+const N_TABLE_DECORATIONS = 4
+
+func main() {
+	if os.Getenv("SSH_AUTH_SOCK") == "" {
+		fmt.Fprintln(os.Stderr, "[41;1mWarning: agent forwarding not enabled[K[m")
+	}
+
+	// Pull requests welcome: code to generalise this to other clouds.
+	creds := aws.IAMCreds()
+	client := ec2.New(creds, AWS_REGION, nil)
+
+	if len(os.Args) > 1 && os.Args[1] == "@" {
+		Watch(client)
+		return
+	}
+
+	JumpTo(client)
 }
