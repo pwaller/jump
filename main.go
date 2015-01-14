@@ -123,6 +123,8 @@ func Watch(client *ec2.EC2) {
 		io.Copy(ioutil.Discard, os.Stdin)
 	}()
 
+	goUp := func() {}
+
 	for {
 		queryStart := time.Now()
 		ConfigureHTTP(true)
@@ -135,6 +137,9 @@ func Watch(client *ec2.EC2) {
 		ConfigureHTTP(false)
 
 		instances := InstancesFromEC2Result(ec2Instances)
+
+		goUp()
+
 		ShowInstances(instances)
 
 		queryDuration := time.Since(queryStart)
@@ -144,7 +149,7 @@ func Watch(client *ec2.EC2) {
 		case <-finish:
 			return
 		}
-		CursorUp(len(instances) + N_TABLE_DECORATIONS)
+		goUp = func() { CursorUp(len(instances) + N_TABLE_DECORATIONS) }
 	}
 
 }
