@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/stripe/aws-go/gen/ec2"
+	"github.com/awslabs/aws-sdk-go/service/ec2"
 )
 
 type Instance struct {
@@ -15,10 +15,10 @@ type Instance struct {
 	ICMPPing, SSHPing, HTTPPing, HTTPSPing <-chan PingResponse
 }
 
-func NewInstance(i ec2.Instance) *Instance {
+func NewInstance(i *ec2.Instance) *Instance {
 	return &Instance{
 		*i.InstanceID, *i.PrivateIPAddress, *i.State.Name,
-		time.Since(i.LaunchTime),
+		time.Since(*i.LaunchTime),
 		TagMap(i.Tags),
 		ICMPPing(*i.PrivateIPAddress),
 		SSHPing(*i.PrivateIPAddress),
@@ -27,7 +27,7 @@ func NewInstance(i ec2.Instance) *Instance {
 	}
 }
 
-func TagMap(ts []ec2.Tag) map[string]string {
+func TagMap(ts []*ec2.Tag) map[string]string {
 	m := map[string]string{}
 	for _, t := range ts {
 		m[*t.Key] = *t.Value
@@ -76,10 +76,13 @@ func (i *Instance) PrettyState() string {
 	return fmt.Sprint("[" + color + "m" + s + "[m")
 }
 
-func InstancesFromEC2Result(in *ec2.DescribeInstancesResult) []*Instance {
+func InstancesFromEC2Result(in *ec2.DescribeInstancesOutput) []*Instance {
 	out := []*Instance{}
 	for _, r := range in.Reservations {
 		for _, oi := range r.Instances {
+			if oi.PrivateIPAddress == nil || oi.PublicIPAddress == nil {
+				continue
+			}
 			out = append(out, NewInstance(oi))
 		}
 	}

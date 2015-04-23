@@ -12,18 +12,8 @@ import (
 
 	"github.com/olekukonko/tablewriter"
 
-	"github.com/stripe/aws-go/aws"
-	"github.com/stripe/aws-go/gen/ec2"
+	"github.com/awslabs/aws-sdk-go/service/ec2"
 )
-
-var AWS_REGION = os.Getenv("AWS_REGION")
-
-func init() {
-	// Default the region to eu-west-1.
-	if AWS_REGION == "" {
-		AWS_REGION = "eu-west-1"
-	}
-}
 
 func ShowInstances(instances []*Instance) {
 	table := tablewriter.NewWriter(os.Stderr)
@@ -92,7 +82,7 @@ func ClearToEndOfScreen() {
 
 func JumpTo(client *ec2.EC2) {
 
-	ec2Instances, err := client.DescribeInstances(&ec2.DescribeInstancesRequest{})
+	ec2Instances, err := client.DescribeInstances(&ec2.DescribeInstancesInput{})
 	if err != nil {
 		log.Fatal("DescribeInstances error:", err)
 	}
@@ -113,8 +103,7 @@ func JumpTo(client *ec2.EC2) {
 }
 
 func Watch(client *ec2.EC2) {
-	creds := aws.IAMCreds()
-	c := ec2.New(creds, AWS_REGION, nil)
+	c := ec2.New(nil)
 
 	finish := make(chan struct{})
 	go func() {
@@ -129,7 +118,7 @@ func Watch(client *ec2.EC2) {
 		queryStart := time.Now()
 		ConfigureHTTP(true)
 
-		ec2Instances, err := c.DescribeInstances(&ec2.DescribeInstancesRequest{})
+		ec2Instances, err := c.DescribeInstances(&ec2.DescribeInstancesInput{})
 		if err != nil {
 			log.Fatal("DescribeInstances error:", err)
 		}
@@ -161,9 +150,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "[41;1mWarning: agent forwarding not enabled[K[m")
 	}
 
-	// Pull requests welcome: code to generalise this to other clouds.
-	creds := aws.IAMCreds()
-	client := ec2.New(creds, AWS_REGION, nil)
+	client := ec2.New(nil)
 
 	if len(os.Args) > 1 && os.Args[1] == "@" {
 		Watch(client)
