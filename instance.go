@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/awslabs/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/ec2"
 )
 
 type Instance struct {
@@ -17,13 +17,13 @@ type Instance struct {
 
 func NewInstance(i *ec2.Instance) *Instance {
 	return &Instance{
-		*i.InstanceID, *i.PrivateIPAddress, *i.State.Name,
+		*i.InstanceId, *i.PrivateIpAddress, *i.State.Name,
 		time.Since(*i.LaunchTime),
 		TagMap(i.Tags),
-		ICMPPing(*i.PrivateIPAddress),
-		SSHPing(*i.PrivateIPAddress),
-		HTTPPing(*i.PrivateIPAddress),
-		HTTPSPing(*i.PrivateIPAddress),
+		ICMPPing(*i.PrivateIpAddress),
+		SSHPing(*i.PrivateIpAddress),
+		HTTPPing(*i.PrivateIpAddress),
+		HTTPSPing(*i.PrivateIpAddress),
 	}
 }
 
@@ -80,7 +80,7 @@ func InstancesFromEC2Result(in *ec2.DescribeInstancesOutput) []*Instance {
 	out := []*Instance{}
 	for _, r := range in.Reservations {
 		for _, oi := range r.Instances {
-			if oi.PrivateIPAddress == nil || oi.PublicIPAddress == nil {
+			if oi.PrivateIpAddress == nil || oi.PublicIpAddress == nil {
 				continue
 			}
 			out = append(out, NewInstance(oi))

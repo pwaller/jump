@@ -12,7 +12,8 @@ import (
 
 	"github.com/olekukonko/tablewriter"
 
-	"github.com/awslabs/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/ec2"
 )
 
 func ShowInstances(instances []*Instance) {
@@ -102,8 +103,7 @@ func JumpTo(client *ec2.EC2) {
 	InvokeSSH(instances[n])
 }
 
-func Watch(client *ec2.EC2) {
-	c := ec2.New(nil)
+func Watch(c *ec2.EC2) {
 
 	finish := make(chan struct{})
 	go func() {
@@ -150,7 +150,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "[41;1mWarning: agent forwarding not enabled[K[m")
 	}
 
-	client := ec2.New(nil)
+	client := ec2.New(session.New())
 
 	if len(os.Args) > 1 && os.Args[1] == "@" {
 		Watch(client)
