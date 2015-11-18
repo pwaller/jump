@@ -16,17 +16,26 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 )
 
+var publicIP bool
+
+func (i *Instance) preferredIP() string {
+	if publicIP {
+		return i.PublicIP
+	}
+	return i.PrivateIP
+}
+
 func ShowInstances(instances []*Instance) {
 	table := tablewriter.NewWriter(os.Stderr)
 	table.SetAlignment(tablewriter.ALIGN_RIGHT)
 	table.SetHeader([]string{
-		"N", "ID", "Name", "S", "Private", "Launch",
+		"N", "ID", "Name", "S", "IP Addr", "Launch",
 		"ICMP", "SSH", "HTTP", "HTTPS"})
 
 	for n, i := range instances {
 		row := []string{
 			fmt.Sprint(n), i.InstanceID[2:], i.Name(), i.PrettyState(),
-			i.PrivateIP, fmtDuration(i.Up),
+			i.preferredIP(), fmtDuration(i.Up),
 			(<-i.ICMPPing).String(),
 			(<-i.SSHPing).String(),
 			(<-i.HTTPPing).String(),
@@ -65,7 +74,7 @@ func InvokeSSH(instance *Instance) {
 	// Enable the user to specify arguments to the left and right of the host.
 	left, right := BreakArgsBySeparator()
 	args = append(args, left...)
-	args = append(args, instance.PrivateIP)
+	args = append(args, instance.preferredIP())
 	args = append(args, right...)
 
 	err := syscall.Exec("/usr/bin/ssh", args, os.Environ())
@@ -148,6 +157,10 @@ const N_TABLE_DECORATIONS = 4
 func main() {
 	if os.Getenv("SSH_AUTH_SOCK") == "" {
 		fmt.Fprintln(os.Stderr, "[41;1mWarning: agent forwarding not enabled[K[m")
+	}
+
+	if os.Getenv("JUMP_IP") == "public" {
+		publicIP = true
 	}
 
 	client := ec2.New(session.New())
