@@ -159,7 +159,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "[41;1mWarning: agent forwarding not enabled[K[m")
 	}
 
-	if os.Getenv("JUMP_IP") == "public" {
+	if os.Getenv("JUMP_PUBLIC") != "" {
 		publicIP = true
 	}
 
