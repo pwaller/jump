@@ -9,7 +9,7 @@ import (
 )
 
 type Instance struct {
-	InstanceID, PrivateIP, State           string
+	InstanceID, PrivateIP, PublicIP, State string
 	Up                                     time.Duration
 	Tags                                   map[string]string
 	ICMPPing, SSHPing, HTTPPing, HTTPSPing <-chan PingResponse
@@ -17,7 +17,7 @@ type Instance struct {
 
 func NewInstance(i *ec2.Instance) *Instance {
 	return &Instance{
-		*i.InstanceId, *i.PrivateIpAddress, *i.State.Name,
+		*i.InstanceId, *i.PrivateIpAddress, *i.PublicIpAddress, *i.State.Name,
 		time.Since(*i.LaunchTime),
 		TagMap(i.Tags),
 		ICMPPing(*i.PrivateIpAddress),
