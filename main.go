@@ -6,12 +6,16 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"syscall"
 	"time"
 
 	"github.com/olekukonko/tablewriter"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/defaults"
+	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 )
@@ -67,10 +71,19 @@ func GetInstanceFromUser(max int) int {
 	return n
 }
 
-func InvokeSSH(instance *Instance) {
-	fmt.Fprintln(os.Stderr, "Connecting to", instance.Name())
+func InvokeSSH(bastion string, instance *Instance) {
+	log.Printf("Connecting: %v", instance.Name())
 
 	args := []string{"/usr/bin/ssh"}
+
+	if bastion != "" {
+		format := `ProxyCommand=ssh %v %v %%h %%p`
+		// TODO(pwaller): automatically determine available netcat binary?
+		netCat := "ncat"
+		proxyCommand := fmt.Sprintf(format, bastion, netCat)
+		args = append(args, "-o", proxyCommand)
+	}
+
 	// Enable the user to specify arguments to the left and right of the host.
 	left, right := BreakArgsBySeparator()
 	args = append(args, left...)
@@ -90,7 +103,7 @@ func ClearToEndOfScreen() {
 	fmt.Fprint(os.Stderr, "[", "J")
 }
 
-func JumpTo(client *ec2.EC2) {
+func JumpTo(bastion string, client *ec2.EC2) {
 
 	ec2Instances, err := client.DescribeInstances(&ec2.DescribeInstancesInput{})
 	if err != nil {
@@ -109,7 +122,7 @@ func JumpTo(client *ec2.EC2) {
 	CursorUp(len(instances) + N_TABLE_DECORATIONS + 1)
 	ClearToEndOfScreen()
 
-	InvokeSSH(instances[n])
+	InvokeSSH(bastion, instances[n])
 }
 
 func Watch(c *ec2.EC2) {
@@ -155,6 +168,9 @@ func Watch(c *ec2.EC2) {
 const N_TABLE_DECORATIONS = 4
 
 func main() {
+
+	log.SetFlags(0)
+
 	if os.Getenv("SSH_AUTH_SOCK") == "" {
 		fmt.Fprintln(os.Stderr, "[41;1mWarning: agent forwarding not enabled[K[m")
 	}
@@ -163,12 +179,39 @@ func main() {
 		publicIP = true
 	}
 
-	client := ec2.New(session.New())
+	s := session.New()
+
+	if os.Getenv("JUMP_BASTION") != "" {
+		// Use the ssh connection to dial remotes
+		bastionDialer, err := BastionDialer(os.Getenv("JUMP_BASTION"))
+		if err != nil {
+			log.Fatalf("BastionDialer: %v", err)
+		}
+		bastionTransport := &http.Transport{Dial: bastionDialer}
+
+		// The EC2RoleProvider overrides the client configuration if
+		// .HTTPClient == http.DefaultClient. Therefore, take a copy.
+		// Also, have to re-initialise the default CredChain to make
+		// use of HTTPClient set after session.New().
+		useClient := *http.DefaultClient
+		useClient.Transport = bastionTransport
+		s.Config.HTTPClient = &useClient
+		s.Config.Credentials = defaults.CredChain(s.Config, defaults.Handlers())
+
+		region, err := ec2metadata.New(s).Region()
+		if err != nil {
+			log.Printf("Unable to determine bastion region: %v", err)
+		}
+		// Make API calls from the bastion's region.
+		s.Config.Region = aws.String(region)
+	}
+
+	client := ec2.New(s)
 
 	if len(os.Args) > 1 && os.Args[1] == "@" {
 		Watch(client)
 		return
 	}
 
-	JumpTo(client)
+	JumpTo(os.Getenv("JUMP_BASTION"), client)
 }
