@@ -14,6 +14,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/defaults"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -103,7 +104,12 @@ func ClearToEndOfScreen() {
 	fmt.Fprint(os.Stderr, "[", "J")
 }
 
-func JumpTo(bastion string, client *ec2.EC2) {
+func JumpTo(bastion string, s client.ConfigProvider, client *ec2.EC2) {
+
+	bastionID, err := ec2metadata.New(s).GetMetadata("instance-id")
+	if err != nil {
+		bastionID = ""
+	}
 
 	ec2Instances, err := client.DescribeInstances(&ec2.DescribeInstancesInput{})
 	if err != nil {
@@ -114,6 +120,18 @@ func JumpTo(bastion string, client *ec2.EC2) {
 	ConfigureHTTP(false)
 
 	instances := InstancesFromEC2Result(ec2Instances)
+	bastionVPC := ""
+
+	for _, i := range instances {
+		if i.InstanceID == bastionID {
+			bastionVPC = i.VPCID
+		}
+	}
+
+	if bastionVPC != "" {
+		instances = filterInstancesByVPC(instances, bastionVPC)
+	}
+
 	ShowInstances(instances)
 
 	n := GetInstanceFromUser(len(instances))
@@ -123,6 +141,16 @@ func JumpTo(bastion string, client *ec2.EC2) {
 	ClearToEndOfScreen()
 
 	InvokeSSH(bastion, instances[n])
+}
+
+func filterInstancesByVPC(instances []*Instance, vpcID string) []*Instance {
+	filtered := []*Instance{}
+	for _, instance := range instances {
+		if instance.VPCID == vpcID {
+			filtered = append(filtered, instance)
+		}
+	}
+	return filtered
 }
 
 func Watch(c *ec2.EC2) {
@@ -213,5 +241,5 @@ func main() {
 		return
 	}
 
-	JumpTo(os.Getenv("JUMP_BASTION"), client)
+	JumpTo(os.Getenv("JUMP_BASTION"), s, client)
 }

@@ -9,15 +9,16 @@ import (
 )
 
 type Instance struct {
-	InstanceID, PrivateIP, PublicIP, State string
-	Up                                     time.Duration
-	Tags                                   map[string]string
-	ICMPPing, SSHPing, HTTPPing, HTTPSPing <-chan PingResponse
+	InstanceID, PrivateIP, PublicIP, State, VPCID string
+	Up                                            time.Duration
+	Tags                                          map[string]string
+	ICMPPing, SSHPing, HTTPPing, HTTPSPing        <-chan PingResponse
 }
 
 func NewInstance(i *ec2.Instance) *Instance {
 	return &Instance{
 		*i.InstanceId, *i.PrivateIpAddress, *i.PublicIpAddress, *i.State.Name,
+		*i.VpcId,
 		time.Since(*i.LaunchTime),
 		TagMap(i.Tags),
 		ICMPPing(*i.PrivateIpAddress),
