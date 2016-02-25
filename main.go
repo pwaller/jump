@@ -66,7 +66,7 @@ func GetInstanceFromUser(max int) int {
 	if err != nil {
 		log.Fatalf("Unrecognised input: %v", s.Text())
 	}
-	if n >= max {
+	if n > max {
 		log.Fatalf("%q is not a valid instance", s.Text())
 	}
 	return n - 1
