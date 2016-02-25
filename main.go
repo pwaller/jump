@@ -39,7 +39,7 @@ func ShowInstances(instances []*Instance) {
 
 	for n, i := range instances {
 		row := []string{
-			fmt.Sprint(n), i.InstanceID[2:], i.Name(), i.PrettyState(),
+			fmt.Sprint(n + 1), i.InstanceID[2:], i.Name(), i.PrettyState(),
 			i.preferredIP(), fmtDuration(i.Up),
 			(<-i.ICMPPing).String(),
 			(<-i.SSHPing).String(),
@@ -69,7 +69,7 @@ func GetInstanceFromUser(max int) int {
 	if n >= max {
 		log.Fatalln("%d is not a valid instance", n)
 	}
-	return n
+	return n - 1
 }
 
 func InvokeSSH(bastion string, instance *Instance) {
