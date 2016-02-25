@@ -59,15 +59,15 @@ func GetInstanceFromUser(max int) int {
 		os.Exit(1)
 	}
 	if s.Err() != nil {
-		log.Fatalln("Error reading stdin:", s.Err())
+		log.Fatalf("Error reading stdin: %v", s.Err())
 	}
 	var n int
 	_, err := fmt.Sscan(s.Text(), &n)
 	if err != nil {
-		log.Fatalln("Unrecognised input:", s.Text())
+		log.Fatalf("Unrecognised input: %v", s.Text())
 	}
 	if n >= max {
-		log.Fatalln("%d is not a valid instance", n)
+		log.Fatalf("%q is not a valid instance", s.Text())
 	}
 	return n - 1
 }
